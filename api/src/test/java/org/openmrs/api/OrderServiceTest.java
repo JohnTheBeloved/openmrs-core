@@ -21,7 +21,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.openmrs.Order.Action.DISCONTINUE;
 import static org.openmrs.test.OpenmrsMatchers.hasId;
 import static org.openmrs.test.TestUtil.containsId;
 
@@ -68,6 +67,7 @@ import org.openmrs.TestOrder;
 import org.openmrs.api.builder.OrderBuilder;
 import org.openmrs.api.context.Context;
 import org.openmrs.api.impl.OrderServiceImpl;
+import org.openmrs.messagesource.MessageSourceService;
 import org.openmrs.order.OrderUtil;
 import org.openmrs.order.OrderUtilTest;
 import org.openmrs.orders.TimestampOrderNumberGenerator;
@@ -82,7 +82,6 @@ import org.openmrs.util.PrivilegeConstants;
  * TODO clean up and test all methods in OrderService
  */
 public class OrderServiceTest extends BaseContextSensitiveTest {
-	
 	
 	private static final String OTHER_ORDER_FREQUENCIES_XML = "org/openmrs/api/include/OrderServiceTest-otherOrderFrequencies.xml";
 	
@@ -101,6 +100,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	private AdministrationService adminService;
 	
 	private OrderSetService orderSetService;
+	
+	private MessageSourceService mss;
 	
 	@Rule
 	public ExpectedException expectedException = ExpectedException.none();
@@ -131,6 +132,9 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		}
 		if (orderSetService == null) {
 			orderSetService = Context.getOrderSetService();
+		}
+		if (mss == null) {
+			mss = Context.getMessageSourceService();
 		}
 	}
 	
@@ -220,14 +224,13 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	@Test
 	@Verifies(value = "should always return unique orderNumbers when called multiple times without saving orders", method = "getNewOrderNumber()")
 	public void getNewOrderNumber_shouldAlwaysReturnUniqueOrderNumbersWhenCalledMultipleTimesWithoutSavingOrders()
-	        throws Exception {
+	    throws Exception {
 		
 		int N = 50;
 		final Set<String> uniqueOrderNumbers = new HashSet<String>(50);
 		List<Thread> threads = new ArrayList<Thread>();
 		for (int i = 0; i < N; i++) {
 			threads.add(new Thread(new Runnable() {
-				
 				
 				@Override
 				public void run() {
@@ -362,8 +365,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	 */
 	@Test
 	public void getOrderFrequencyByUuid_shouldReturnTheOrderFrequencyThatMatchesTheSpecifiedUuid() throws Exception {
-		assertEquals(1,
-		    orderService.getOrderFrequencyByUuid("28090760-7c38-11e3-baa7-0800200c9a66").getOrderFrequencyId().intValue());
+		assertEquals(1, orderService.getOrderFrequencyByUuid("28090760-7c38-11e3-baa7-0800200c9a66").getOrderFrequencyId()
+		        .intValue());
 	}
 	
 	/**
@@ -382,7 +385,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	 */
 	@Test
 	public void getOrderFrequencies_shouldReturnOnlyNonRetiredOrderFrequenciesIfIncludeRetiredIsSetToFalse()
-	        throws Exception {
+	    throws Exception {
 		List<OrderFrequency> orderFrequencies = orderService.getOrderFrequencies(false);
 		assertEquals(2, orderFrequencies.size());
 		assertTrue(containsId(orderFrequencies, 1));
@@ -462,8 +465,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	@Test
 	public void getActiveOrders_shouldReturnAllActiveTestOrdersForTheSpecifiedPatient() throws Exception {
 		Patient patient = patientService.getPatient(2);
-		List<Order> orders = orderService.getActiveOrders(patient, orderService.getOrderTypeByName("Test order"), null,
-		    null);
+		List<Order> orders = orderService
+		        .getActiveOrders(patient, orderService.getOrderTypeByName("Test order"), null, null);
 		assertEquals(1, orders.size());
 		assertEquals(orders.get(0), orderService.getOrder(7));
 	}
@@ -615,7 +618,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	 */
 	@Test
 	public void discontinueOrder_shouldPassForAnActiveOrderWhichIsScheduledAndNotStartedAsOfDiscontinueDate()
-	        throws Exception {
+	    throws Exception {
 		Order order = new Order();
 		order.setAction(Action.NEW);
 		order.setPatient(Context.getPatientService().getPatient(7));
@@ -682,7 +685,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	 */
 	@Test
 	public void discontinueOrder_shouldPassForAnActiveOrderWhichIsScheduledAndNotStartedAsOfDiscontinueDateWithParamConcept()
-	        throws Exception {
+	    throws Exception {
 		Order order = new Order();
 		order.setAction(Action.NEW);
 		order.setPatient(Context.getPatientService().getPatient(7));
@@ -727,9 +730,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		Order discontinuationOrder = orderService.getOrder(26);
 		assertEquals(Action.DISCONTINUE, discontinuationOrder.getAction());
 		Encounter encounter = encounterService.getEncounter(3);
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage(Context.getMessageSourceService().getMessage("Order.action.cannot.discontinued",
-		    new Object[] { DISCONTINUE }, null));
+		expectedException.expect(CannotStopDiscontinuationOrderException.class);
+		expectedException.expectMessage(mss.getMessage("Order.action.cannot.discontinue"));
 		orderService.discontinueOrder(discontinuationOrder, "Test if I can discontinue this", null, null, encounter);
 	}
 	
@@ -745,9 +747,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		Order discontinuationOrder = orderService.getOrder(26);
 		assertEquals(Action.DISCONTINUE, discontinuationOrder.getAction());
 		Encounter encounter = encounterService.getEncounter(3);
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage(Context.getMessageSourceService().getMessage("Order.action.cannot.discontinued",
-		    new Object[] { DISCONTINUE }, null));
+		expectedException.expect(CannotStopDiscontinuationOrderException.class);
+		expectedException.expectMessage(mss.getMessage("Order.action.cannot.discontinue"));
 		orderService.discontinueOrder(discontinuationOrder, (Concept) null, null, null, encounter);
 	}
 	
@@ -762,8 +763,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		assertFalse(discontinuationOrder.isActive());
 		assertNotNull(discontinuationOrder.getDateStopped());
 		Encounter encounter = encounterService.getEncounter(3);
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage("Order.stopped.cannot.discontinued");
+		expectedException.expect(CannotStopInactiveOrderException.class);
+		expectedException.expectMessage(mss.getMessage("Order.cannot.discontinue.inactive"));
 		orderService.discontinueOrder(discontinuationOrder, "some reason", null, null, encounter);
 	}
 	
@@ -778,8 +779,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		assertFalse(discontinuationOrder.isActive());
 		assertNotNull(discontinuationOrder.getDateStopped());
 		Encounter encounter = encounterService.getEncounter(3);
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage("Order.stopped.cannot.discontinued");
+		expectedException.expect(CannotStopInactiveOrderException.class);
+		expectedException.expectMessage(mss.getMessage("Order.cannot.discontinue.inactive"));
 		orderService.discontinueOrder(discontinuationOrder, (Concept) null, null, null, encounter);
 	}
 	
@@ -788,8 +789,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	 */
 	@Test
 	@Verifies(value = "should discontinue existing active order if new order being saved with action to discontinue", method = "saveOrder(Order)")
-	public void saveOrder_shouldDiscontinueExistingActiveOrderIfNewOrderBeingSavedWithActionToDiscontinue()
-	        throws Exception {
+	public void saveOrder_shouldDiscontinueExistingActiveOrderIfNewOrderBeingSavedWithActionToDiscontinue() throws Exception {
 		DrugOrder order = new DrugOrder();
 		order.setAction(Order.Action.DISCONTINUE);
 		order.setOrderReasonNonCoded("Discontinue this");
@@ -875,7 +875,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		assertFalse(previousOrder.getConcept().equals(newConcept));
 		order.setConcept(newConcept);
 		
-		expectedException.expect(APIException.class);
+		expectedException.expect(EditedOrderDoesNotMatchPreviousException.class);
 		expectedException.expectMessage("The orderable of the previous order and the new one order don't match");
 		orderService.saveOrder(order, null);
 	}
@@ -907,9 +907,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	public void discontinueOrder_shouldFailIfDiscontinueDateIsInTheFuture() throws Exception {
 		Calendar cal = Calendar.getInstance();
 		cal.add(Calendar.HOUR_OF_DAY, 1);
-		Order orderToDiscontinue = orderService
-		        .getActiveOrders(Context.getPatientService().getPatient(2), null, orderService.getCareSetting(1), null)
-		        .get(0);
+		Order orderToDiscontinue = orderService.getActiveOrders(Context.getPatientService().getPatient(2), null,
+		    orderService.getCareSetting(1), null).get(0);
 		Encounter encounter = encounterService.getEncounter(3);
 		expectedException.expect(IllegalArgumentException.class);
 		expectedException.expectMessage("Discontinue date cannot be in the future");
@@ -973,7 +972,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		order.setDrug(discontinuationOrderDrug);
 		order.setOrderReasonNonCoded("Discontinue this");
 		
-		expectedException.expect(APIException.class);
+		expectedException.expect(EditedOrderDoesNotMatchPreviousException.class);
 		expectedException.expectMessage("The orderable of the previous order and the new one order don't match");
 		orderService.saveOrder(order, null);
 	}
@@ -985,7 +984,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	 */
 	@Test
 	public void saveOrder_shouldPassIfTheExistingDrugOrderMatchesTheConceptAndThereIsNoDrugOnThePreviousOrder()
-	        throws Exception {
+	    throws Exception {
 		DrugOrder orderToDiscontinue = new DrugOrder();
 		orderToDiscontinue.setAction(Action.NEW);
 		orderToDiscontinue.setPatient(Context.getPatientService().getPatient(7));
@@ -1032,8 +1031,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		Order orderToDiscontinue = orderService.getOrder(1);
 		Encounter encounter = encounterService.getEncounter(3);
 		assertNotNull(orderToDiscontinue.getDateStopped());
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage("Order.stopped.cannot.discontinued");
+		expectedException.expect(CannotStopInactiveOrderException.class);
+		expectedException.expectMessage(mss.getMessage("Order.cannot.discontinue.inactive"));
 		orderService.discontinueOrder(orderToDiscontinue, Context.getConceptService().getConcept(1), null, null, encounter);
 	}
 	
@@ -1045,10 +1044,9 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	@Test
 	public void discontinueOrder_shouldFailForAVoidedOrder() throws Exception {
 		Order orderToDiscontinue = orderService.getOrder(8);
-		Encounter encounter = encounterService.getEncounter(3);
-		assertTrue(orderToDiscontinue.isVoided());
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage("Order.stopped.cannot.discontinued");
+		Encounter encounter = encounterService.getEncounter(3);assertTrue(orderToDiscontinue.getVoided());
+		expectedException.expect(CannotStopInactiveOrderException.class);
+		expectedException.expectMessage(mss.getMessage("Order.cannot.discontinue.inactive"));
 		orderService.discontinueOrder(orderToDiscontinue, "testing", null, null, encounter);
 	}
 	
@@ -1063,8 +1061,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		Encounter encounter = encounterService.getEncounter(3);
 		assertNotNull(orderToDiscontinue.getAutoExpireDate());
 		assertTrue(orderToDiscontinue.getAutoExpireDate().before(new Date()));
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage("Order.stopped.cannot.discontinued");
+		expectedException.expect(CannotStopInactiveOrderException.class);
+		expectedException.expectMessage(mss.getMessage("Order.cannot.discontinue.inactive"));
 		orderService.discontinueOrder(orderToDiscontinue, Context.getConceptService().getConcept(1), null, null, encounter);
 	}
 	
@@ -1075,7 +1073,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	@Test
 	public void saveOrder_shouldNotAllowEditingAnExistingOrder() throws Exception {
 		final DrugOrder order = (DrugOrder) orderService.getOrder(5);
-		expectedException.expect(APIException.class);
+		expectedException.expect(UnchangeableObjectException.class);
 		expectedException.expectMessage("Order.cannot.edit.existing");
 		orderService.saveOrder(order, null);
 	}
@@ -1142,8 +1140,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		revisedOrder.setInstructions("Take after a meal");
 		revisedOrder.setOrderer(providerService.getProvider(1));
 		revisedOrder.setDateActivated(new Date());
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage("Order.stopped.cannot.discontinued");
+		expectedException.expect(CannotStopInactiveOrderException.class);
+		expectedException.expectMessage(mss.getMessage("Order.cannot.discontinue.inactive"));
 		orderService.saveOrder(revisedOrder, null);
 	}
 	
@@ -1160,8 +1158,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		revisedOrder.setInstructions("Take after a meal");
 		revisedOrder.setOrderer(providerService.getProvider(1));
 		revisedOrder.setDateActivated(new Date());
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage("Order.stopped.cannot.discontinued");
+		expectedException.expect(CannotStopInactiveOrderException.class);
+		expectedException.expectMessage(mss.getMessage("Order.cannot.discontinue.inactive"));
 		orderService.saveOrder(revisedOrder, null);
 	}
 	
@@ -1180,8 +1178,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		revisedOrder.setOrderer(providerService.getProvider(1));
 		revisedOrder.setDateActivated(new Date());
 		revisedOrder.setAutoExpireDate(new Date());
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage("Order.stopped.cannot.discontinued");
+		expectedException.expect(CannotStopInactiveOrderException.class);
+		expectedException.expectMessage(mss.getMessage("Order.cannot.discontinue.inactive"));
 		orderService.saveOrder(revisedOrder, null);
 	}
 	
@@ -1200,8 +1198,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		revisedOrder.setOrderer(providerService.getProvider(1));
 		revisedOrder.setDateActivated(new Date());
 		
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage("Order.previous.required");
+		expectedException.expect(MissingRequiredPropertyException.class);
+		expectedException.expectMessage(mss.getMessage("Order.previous.required"));
 		orderService.saveOrder(revisedOrder, null);
 	}
 	
@@ -1278,7 +1276,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	 */
 	@Test
 	public void getOrderFrequencies_shouldGetNonRetiredFrequenciesWithNamesMatchingThePhraseIfIncludeRetiredIsFalse()
-	        throws Exception {
+	    throws Exception {
 		executeDataSet("org/openmrs/api/include/OrderServiceTest-otherOrderFrequencies.xml");
 		List<OrderFrequency> orderFrequencies = orderService.getOrderFrequencies("once", Locale.US, false, false);
 		assertEquals(2, orderFrequencies.size());
@@ -1314,7 +1312,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	 */
 	@Test
 	public void getOrderFrequencies_shouldGetFrequenciesWithNamesThatMatchThePhraseAndLocalesIfExactLocaleIsFalse()
-	        throws Exception {
+	    throws Exception {
 		executeDataSet("org/openmrs/api/include/OrderServiceTest-otherOrderFrequencies.xml");
 		List<OrderFrequency> orderFrequencies = orderService.getOrderFrequencies("ce", Locale.US, false, false);
 		assertEquals(3, orderFrequencies.size());
@@ -1329,7 +1327,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	 */
 	@Test
 	public void getOrderFrequencies_shouldGetFrequenciesWithNamesThatMatchThePhraseAndLocaleIfExactLocaleIsTrue()
-	        throws Exception {
+	    throws Exception {
 		executeDataSet("org/openmrs/api/include/OrderServiceTest-otherOrderFrequencies.xml");
 		List<OrderFrequency> orderFrequencies = orderService.getOrderFrequencies("ce", Locale.US, true, false);
 		assertEquals(1, orderFrequencies.size());
@@ -1486,7 +1484,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		assertNotNull(orderFrequency);
 		
 		orderFrequency.setFrequencyPerDay(4d);
-		expectedException.expect(APIException.class);
+		expectedException.expect(CannotUpdateObjectInUseException.class);
 		expectedException.expectMessage("Order.frequency.cannot.edit");
 		orderService.saveOrderFrequency(orderFrequency);
 	}
@@ -1500,8 +1498,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		OrderFrequency orderFrequency = orderService.getOrderFrequency(1);
 		assertNotNull(orderFrequency);
 		
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage("Order.frequency.cannot.delete");
+		expectedException.expect(CannotDeleteObjectInUseException.class);
+		expectedException.expectMessage(mss.getMessage("Order.frequency.cannot.delete"));
 		orderService.purgeOrderFrequency(orderFrequency);
 	}
 	
@@ -1582,7 +1580,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	@Test
 	@Ignore("Ignored because it fails after removal of deprecated methods TRUNK-4772")
 	public void saveOrder_shouldFailForRevisionOrderIfAnActiveDrugOrderForTheSameConceptAndCareSettingsExists()
-	        throws Exception {
+	    throws Exception {
 		final Patient patient = patientService.getPatient(2);
 		final Concept aspirin = conceptService.getConcept(88);
 		DrugOrder firstOrder = new DrugOrder();
@@ -1638,7 +1636,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	@Test
 	@Ignore("Ignored because it fails after removal of deprecated methods TRUNK-4772")
 	public void saveOrder_shouldPassForRevisionOrderIfAnActiveTestOrderForTheSameConceptAndCareSettingsExists()
-	        throws Exception {
+	    throws Exception {
 		final Patient patient = patientService.getPatient(2);
 		final Concept cd4Count = conceptService.getConcept(5497);
 		TestOrder activeOrder = new TestOrder();
@@ -1703,7 +1701,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		drugOrder.setQuantityUnits(duplicateOrder.getQuantityUnits());
 		drugOrder.setNumRefills(duplicateOrder.getNumRefills());
 		
-		expectedException.expect(APIException.class);
+		expectedException.expect(AmbiguousOrderException.class);
 		expectedException.expectMessage("Order.cannot.have.more.than.one");
 		orderService.saveOrder(drugOrder, null);
 	}
@@ -1740,7 +1738,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	@Test
 	@Ignore("Ignored because it fails after removal of deprecated methods TRUNK-4772")
 	public void saveOrder_shouldSaveRevisionOrderScheduledOnDateNotOverlappingWithAnActiveOrderForTheSameConceptAndCareSetting()
-	        throws Exception {
+	    throws Exception {
 		//sanity check that we have an active order
 		final Patient patient = patientService.getPatient(2);
 		final Concept cd4Count = conceptService.getConcept(5497);
@@ -1784,7 +1782,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	 */
 	@Test
 	public void saveOrder_shouldPassIfAnActiveDrugOrderForTheSameConceptAndCareSettingButDifferentFormulationExists()
-	        throws Exception {
+	    throws Exception {
 		executeDataSet("org/openmrs/api/include/OrderServiceTest-drugOrdersWithSameConceptAndDifferentFormAndStrength.xml");
 		final Patient patient = patientService.getPatient(2);
 		//sanity check that we have an active order
@@ -1815,7 +1813,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	 */
 	@Test
 	public void saveOrder_shouldThrowAmbiguousOrderExceptionIfAnActiveDrugOrderForTheSameDrugFormulationExists()
-	        throws Exception {
+	    throws Exception {
 		executeDataSet("org/openmrs/api/include/OrderServiceTest-drugOrdersWithSameConceptAndDifferentFormAndStrength.xml");
 		final Patient patient = patientService.getPatient(2);
 		//sanity check that we have an active order for the same concept
@@ -2167,7 +2165,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		order.setCareSetting(orderService.getCareSetting(1));
 		order.setEncounter(encounterService.getEncounter(3));
 		order.setDateActivated(new Date());
-		expectedException.expect(APIException.class);
+		expectedException.expect(OrderEntryException.class);
 		expectedException.expectMessage("Order.type.cannot.determine");
 		orderService.saveOrder(order, null);
 	}
@@ -2230,8 +2228,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	public void purgeOrderType_shouldNotAllowDeletingAnOrderTypeThatIsInUse() {
 		OrderType orderType = orderService.getOrderType(1);
 		assertNotNull(orderType);
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage("Order.type.cannot.delete");
+		expectedException.expect(CannotDeleteObjectInUseException.class);
+		expectedException.expectMessage(mss.getMessage("Order.type.cannot.delete"));
 		orderService.purgeOrderType(orderType);
 	}
 	
@@ -2369,85 +2367,6 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	}
 	
 	/**
-	 * @verifies not allow changing the patient of the previous order when revising an order
-	 * @see OrderService#saveOrder(org.openmrs.Order, OrderContext)
-	 */
-	@Test
-	public void saveOrder_shouldNotAllowChangingThePatientOfThePreviousOrderWhenRevisingAnOrder() throws Exception {
-		Order orderToRevise = orderService.getOrder(7);
-		Patient newPatient = patientService.getPatient(7);
-		assertFalse(orderToRevise.getPatient().equals(newPatient));
-		orderToRevise.setPatient(newPatient);
-		Order order = orderToRevise.cloneForRevision();
-		order.setDateActivated(new Date());
-		order.setEncounter(encounterService.getEncounter(3));
-		order.setOrderer(providerService.getProvider(1));
-		
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage("Order.cannot.change.patient");
-		orderService.saveOrder(order, null);
-	}
-	
-	/**
-	 * @verifies not allow changing the careSetting of the previous order when revising an order
-	 * @see OrderService#saveOrder(org.openmrs.Order, OrderContext)
-	 */
-	@Test
-	public void saveOrder_shouldNotAllowChangingTheCareSettingOfThePreviousOrderWhenRevisingAnOrder() throws Exception {
-		Order order = orderService.getOrder(7).cloneForRevision();
-		order.setDateActivated(new Date());
-		order.setEncounter(encounterService.getEncounter(6));
-		order.setOrderer(providerService.getProvider(1));
-		CareSetting newCareSetting = orderService.getCareSetting(2);
-		assertFalse(order.getPreviousOrder().getCareSetting().equals(newCareSetting));
-		order.getPreviousOrder().setCareSetting(newCareSetting);
-		
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage("Order.cannot.change.careSetting");
-		orderService.saveOrder(order, null);
-	}
-	
-	/**
-	 * @verifies not allow changing the concept of the previous order when revising an order
-	 * @see OrderService#saveOrder(org.openmrs.Order, OrderContext)
-	 */
-	@Test
-	public void saveOrder_shouldNotAllowChangingTheConceptOfThePreviousOrderWhenRevisingAnOrder() throws Exception {
-		Order order = orderService.getOrder(7).cloneForRevision();
-		order.setDateActivated(new Date());
-		order.setEncounter(encounterService.getEncounter(6));
-		order.setOrderer(providerService.getProvider(1));
-		Concept newConcept = conceptService.getConcept(5089);
-		assertFalse(order.getPreviousOrder().getConcept().equals(newConcept));
-		
-		order.getPreviousOrder().setConcept(newConcept);
-		
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage("Order.cannot.change.concept");
-		orderService.saveOrder(order, null);
-	}
-	
-	/**
-	 * @verifies not allow changing the drug of the previous drug order when revising an order
-	 * @see OrderService#saveOrder(org.openmrs.Order, OrderContext)
-	 */
-	@Test
-	public void saveOrder_shouldNotAllowChangingTheDrugOfThePreviousDrugOrderWhenRevisingAnOrder() throws Exception {
-		DrugOrder order = (DrugOrder) orderService.getOrder(111).cloneForRevision();
-		order.setDateActivated(new Date());
-		order.setEncounter(encounterService.getEncounter(3));
-		order.setOrderer(providerService.getProvider(1));
-		Drug newDrug = conceptService.getDrug(2);
-		DrugOrder previousOrder = (DrugOrder) order.getPreviousOrder();
-		assertFalse(previousOrder.getDrug().equals(newDrug));
-		previousOrder.setDrug(newDrug);
-		
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage("Order.cannot.change.drug");
-		orderService.saveOrder(order, null);
-	}
-	
-	/**
 	 * @verifies fail if concept in previous order does not match that of the revised order
 	 * @see OrderService#saveOrder(org.openmrs.Order, OrderContext)
 	 */
@@ -2462,7 +2381,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		assertFalse(previousOrder.getConcept().equals(newConcept));
 		order.setConcept(newConcept);
 		
-		expectedException.expect(APIException.class);
+		expectedException.expect(EditedOrderDoesNotMatchPreviousException.class);
 		expectedException.expectMessage("The orderable of the previous order and the new one order don't match");
 		orderService.saveOrder(order, null);
 	}
@@ -2489,7 +2408,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		order.setEncounter(encounterService.getEncounter(6));
 		order.setDrug(discontinuationOrderDrug);
 		
-		expectedException.expect(APIException.class);
+		expectedException.expect(EditedOrderDoesNotMatchPreviousException.class);
 		expectedException.expectMessage("The orderable of the previous order and the new one order don't match");
 		orderService.saveOrder(order, null);
 	}
@@ -2510,8 +2429,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		discontinuationOrder.setOrderer(Context.getProviderService().getProvider(1));
 		discontinuationOrder.setEncounter(Context.getEncounterService().getEncounter(6));
 		
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage("Order.type.does.not.match");
+		expectedException.expect(EditedOrderDoesNotMatchPreviousException.class);
+		expectedException.expectMessage(mss.getMessage("Order.type.doesnot.match"));
 		orderService.saveOrder(discontinuationOrder, null);
 	}
 	
@@ -2534,8 +2453,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		discontinuationOrder.setOrderer(Context.getProviderService().getProvider(1));
 		discontinuationOrder.setEncounter(Context.getEncounterService().getEncounter(6));
 		
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage("Order.class.does.not.match");
+		expectedException.expect(EditedOrderDoesNotMatchPreviousException.class);
+		expectedException.expectMessage(mss.getMessage("Order.class.doesnot.match"));
 		orderService.saveOrder(discontinuationOrder, null);
 	}
 	
@@ -2554,8 +2473,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		discontinuationOrder.setOrderer(Context.getProviderService().getProvider(1));
 		discontinuationOrder.setEncounter(Context.getEncounterService().getEncounter(6));
 		
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage("Order.care.setting.does.not.match");
+		expectedException.expect(EditedOrderDoesNotMatchPreviousException.class);
+		expectedException.expectMessage(mss.getMessage("Order.care.setting.doesnot.match"));
 		orderService.saveOrder(discontinuationOrder, null);
 	}
 	
@@ -2742,9 +2661,9 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		    previousOrder.getEncounter());
 		Thread.sleep(10);
 		
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage(Context.getMessageSourceService().getMessage("Order.action.cannot.unvoid",
-		    new Object[] { "discontinuation" }, null));
+		expectedException.expect(CannotUnvoidOrderException.class);
+		expectedException.expectMessage(mss.getMessage("Order.action.cannot.unvoid", new Object[] { "discontinuation" },
+		    null));
 		orderService.unvoidOrder(order);
 	}
 	
@@ -2772,9 +2691,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		orderService.saveOrder(revise, null);
 		Thread.sleep(10);
 		
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage(
-		    Context.getMessageSourceService().getMessage("Order.action.cannot.unvoid", new Object[] { "revision" }, null));
+		expectedException.expect(CannotUnvoidOrderException.class);
+		expectedException.expectMessage(mss.getMessage("Order.action.cannot.unvoid", new Object[] { "revision" }, null));
 		orderService.unvoidOrder(order);
 	}
 	
@@ -3067,7 +2985,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	 */
 	@Test(expected = AmbiguousOrderException.class)
 	public void saveOrder_shouldThrowAmbiguousOrderExceptionIfDisconnectingMultipleActiveOrdersForTheGivenConcepts()
-	        throws Exception {
+	    throws Exception {
 		executeDataSet("org/openmrs/api/include/OrderServiceTest-discontinueAmbiguousOrderByConcept.xml");
 		DrugOrder order = new DrugOrder();
 		order.setAction(Order.Action.DISCONTINUE);
@@ -3087,7 +3005,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	 */
 	@Test(expected = AmbiguousOrderException.class)
 	public void saveOrder_shouldThrowAmbiguousOrderExceptionIfDisconnectingMultipleActiveDrugOrdersWithTheSameDrug()
-	        throws Exception {
+	    throws Exception {
 		executeDataSet("org/openmrs/api/include/OrderServiceTest-ambiguousDrugOrders.xml");
 		DrugOrder order = new DrugOrder();
 		order.setAction(Order.Action.DISCONTINUE);
@@ -3182,7 +3100,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	 */
 	@Test
 	public void saveOrder_shouldFailIfAnActiveDrugOrderForTheSameConceptAndDrugNonCodedAndCareSettingExists()
-	        throws Exception {
+	    throws Exception {
 		executeDataSet("org/openmrs/api/include/OrderServiceTest-nonCodedDrugs.xml");
 		final Concept nonCodedConcept = orderService.getNonCodedDrugConcept();
 		//sanity check that we have an active order for the same concept
@@ -3193,7 +3111,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		DrugOrder drugOrder = duplicateOrder.copy();
 		drugOrder.setDrugNonCoded("non coded drug crocine");
 		
-		expectedException.expect(APIException.class);
+		expectedException.expect(AmbiguousOrderException.class);
 		expectedException.expectMessage("Order.cannot.have.more.than.one");
 		orderService.saveOrder(drugOrder, null);
 	}
@@ -3217,8 +3135,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	
 	@Test
 	@Verifies(value = "should fail discontinue previousNonCodedDrugOrder if the orderable of the previous order and the new one order don't match ", method = "saveOrder(Order)")
-	public void saveOrder_shouldFailDiscontinueNonCodedDrugOrderIfOrderableOfPreviousAndNewOrderDontMatch()
-	        throws Exception {
+	public void saveOrder_shouldFailDiscontinueNonCodedDrugOrderIfOrderableOfPreviousAndNewOrderDontMatch() throws Exception {
 		executeDataSet("org/openmrs/api/include/OrderServiceTest-nonCodedDrugs.xml");
 		DrugOrder previousOrder = (DrugOrder) orderService.getOrder(584);
 		DrugOrder drugOrder = previousOrder.cloneForDiscontinuing();
@@ -3228,7 +3145,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		drugOrder.setOrderer(providerService.getProvider(1));
 		drugOrder.setEncounter(encounterService.getEncounter(6));
 		
-		expectedException.expect(APIException.class);
+		expectedException.expect(EditedOrderDoesNotMatchPreviousException.class);
 		expectedException.expectMessage("The orderable of the previous order and the new one order don't match");
 		orderService.saveOrder(drugOrder, null);
 	}
@@ -3236,7 +3153,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 	@Test
 	@Verifies(value = "should fail revising previousNonCodedDrugOrder if the orderable of the previous order and the new one order don't match ", method = "saveOrder(Order)")
 	public void saveOrder_shouldFailIfDrugNonCodedInPreviousDrugOrderDoesNotMatchThatOfTheRevisedDrugOrder()
-	        throws Exception {
+	    throws Exception {
 		executeDataSet("org/openmrs/api/include/OrderServiceTest-nonCodedDrugs.xml");
 		DrugOrder previousOrder = (DrugOrder) orderService.getOrder(584);
 		DrugOrder order = previousOrder.cloneForRevision();
@@ -3249,7 +3166,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		order.setDrugNonCoded(drugNonCodedParacetemol);
 		order.setPreviousOrder(previousOrder);
 		
-		expectedException.expect(APIException.class);
+		expectedException.expect(EditedOrderDoesNotMatchPreviousException.class);
 		expectedException.expectMessage("The orderable of the previous order and the new one order don't match");
 		orderService.saveOrder(order, null);
 	}
@@ -3336,14 +3253,14 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		order.setEncounter(encounterService.getEncounter(18));
 		order.setPreviousOrder(previousOrder);
 		
-		expectedException.expect(APIException.class);
-		expectedException.expectMessage("Order.retrospective.stopped.cannot.discontinued");
+		expectedException.expect(CannotStopInactiveOrderException.class);
+		expectedException.expectMessage(mss.getMessage("Order.cannot.discontinue.inactive"));
 		orderService.saveRetrospectiveOrder(order, null);
 	}
 	
 	@Test
 	public void saveRetrospectiveOrder_shouldFailIfAnActiveDrugOrderForTheSameConceptAndCareSettingExistsAtOrderDateActivated()
-	        throws Exception {
+	    throws Exception {
 		executeDataSet("org/openmrs/api/include/OrderServiceTest-ordersWithAutoExpireDate.xml");
 		Date newOrderDateActivated = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").parse("2008-11-19 13:00:10");
 		final Patient patient = patientService.getPatient(12);
@@ -3369,7 +3286,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		order.setQuantityUnits(duplicateOrder.getQuantityUnits());
 		order.setNumRefills(duplicateOrder.getNumRefills());
 		
-		expectedException.expect(APIException.class);
+		expectedException.expect(AmbiguousOrderException.class);
 		expectedException.expectMessage("Order.cannot.have.more.than.one");
 		orderService.saveRetrospectiveOrder(order, null);
 	}
@@ -3431,9 +3348,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		assertEquals("The second order in  savedOrderGroup is the same which is sent second in the List",
 		    secondOrderWithOrderGroup.getUuid(), savedOrderGroup.getOrders().get(1).getUuid());
 		assertNull("The order which doesn't belong to an orderGroup has no sortWeight", savedOrder.getSortWeight());
-		assertThat("The first order has a lower sortWeight than the second",
-		    savedOrderGroup.getOrders().get(0).getSortWeight().compareTo(savedOrderGroup.getOrders().get(1).getSortWeight()),
-		    is(-1));
+		assertThat("The first order has a lower sortWeight than the second", savedOrderGroup.getOrders().get(0)
+		        .getSortWeight().compareTo(savedOrderGroup.getOrders().get(1).getSortWeight()), is(-1));
 	}
 	
 	@Test
@@ -3479,9 +3395,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		
 		assertEquals("The second order in  savedOrderGroup is the same which is sent second in the List",
 		    secondOrderWithOrderGroup.getUuid(), savedOrderGroup.getOrders().get(1).getUuid());
-		assertThat("The first order has a lower sortWeight than the second",
-		    savedOrderGroup.getOrders().get(0).getSortWeight().compareTo(savedOrderGroup.getOrders().get(1).getSortWeight()),
-		    is(-1));
+		assertThat("The first order has a lower sortWeight than the second", savedOrderGroup.getOrders().get(0)
+		        .getSortWeight().compareTo(savedOrderGroup.getOrders().get(1).getSortWeight()), is(-1));
 		
 		Order newOrderWithoutAnyPosition = new OrderBuilder().withAction(Order.Action.NEW).withPatient(7).withConcept(1000)
 		        .withCareSetting(1).withOrderer(1).withEncounter(3).withDateActivated(new Date()).withOrderType(17)
@@ -3504,9 +3419,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		assertEquals("The third order in  savedOrderGroup is the same which is sent third in the List",
 		    secondSavedOrderGroup.getOrders().get(2).getUuid(), newOrderWithoutAnyPosition.getUuid());
 		
-		assertThat("The third order has a higher sortWeight than the second",
-		    savedOrderGroup.getOrders().get(2).getSortWeight().compareTo(savedOrderGroup.getOrders().get(1).getSortWeight()),
-		    is(1));
+		assertThat("The third order has a higher sortWeight than the second", savedOrderGroup.getOrders().get(2)
+		        .getSortWeight().compareTo(savedOrderGroup.getOrders().get(1).getSortWeight()), is(1));
 	}
 	
 	@Test
@@ -3551,9 +3465,8 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		
 		assertEquals("The second order in  savedOrderGroup is the same which is sent second in the List",
 		    secondOrderWithOrderGroup.getUuid(), savedOrderGroup.getOrders().get(1).getUuid());
-		assertThat("The first order has a lower sortWeight than the second",
-		    savedOrderGroup.getOrders().get(0).getSortWeight().compareTo(savedOrderGroup.getOrders().get(1).getSortWeight()),
-		    is(-1));
+		assertThat("The first order has a lower sortWeight than the second", savedOrderGroup.getOrders().get(0)
+		        .getSortWeight().compareTo(savedOrderGroup.getOrders().get(1).getSortWeight()), is(-1));
 		
 		Order newOrderAtPosition1 = new OrderBuilder().withAction(Order.Action.NEW).withPatient(7).withConcept(1000)
 		        .withCareSetting(1).withOrderer(1).withEncounter(3).withDateActivated(new Date()).withOrderType(17)
@@ -3585,15 +3498,12 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		assertEquals("The fourth order in  savedOrderGroup is the same which is sent first in the List",
 		    secondOrderWithOrderGroup.getUuid(), savedOrderGroup.getOrders().get(3).getUuid());
 		
-		assertThat("The third order has a lower sortWeight than the fourth",
-		    savedOrderGroup.getOrders().get(2).getSortWeight().compareTo(savedOrderGroup.getOrders().get(3).getSortWeight()),
-		    is(-1));
-		assertThat("The second order has a lower sortWeight than the third",
-		    savedOrderGroup.getOrders().get(1).getSortWeight().compareTo(savedOrderGroup.getOrders().get(2).getSortWeight()),
-		    is(-1));
-		assertThat("The first order has a lower sortWeight than the second",
-		    savedOrderGroup.getOrders().get(0).getSortWeight().compareTo(savedOrderGroup.getOrders().get(1).getSortWeight()),
-		    is(-1));
+		assertThat("The third order has a lower sortWeight than the fourth", savedOrderGroup.getOrders().get(2)
+		        .getSortWeight().compareTo(savedOrderGroup.getOrders().get(3).getSortWeight()), is(-1));
+		assertThat("The second order has a lower sortWeight than the third", savedOrderGroup.getOrders().get(1)
+		        .getSortWeight().compareTo(savedOrderGroup.getOrders().get(2).getSortWeight()), is(-1));
+		assertThat("The first order has a lower sortWeight than the second", savedOrderGroup.getOrders().get(0)
+		        .getSortWeight().compareTo(savedOrderGroup.getOrders().get(1).getSortWeight()), is(-1));
 	}
 	
 	@Test
@@ -3634,10 +3544,10 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		
 		OrderGroup savedOrderGroup = Context.getOrderService().getOrderGroupByUuid(orderGroup.getUuid());
 		
-		Order newOrderWithNegativePosition = new OrderBuilder().withAction(Order.Action.NEW).withPatient(7).withConcept(1000)
-		        .withCareSetting(1).withOrderer(1).withEncounter(3).withDateActivated(new Date()).withOrderType(17)
-		        .withUrgency(Order.Urgency.ON_SCHEDULED_DATE).withScheduledDate(new Date()).withOrderGroup(savedOrderGroup)
-		        .build();
+		Order newOrderWithNegativePosition = new OrderBuilder().withAction(Order.Action.NEW).withPatient(7)
+		        .withConcept(1000).withCareSetting(1).withOrderer(1).withEncounter(3).withDateActivated(new Date())
+		        .withOrderType(17).withUrgency(Order.Urgency.ON_SCHEDULED_DATE).withScheduledDate(new Date())
+		        .withOrderGroup(savedOrderGroup).build();
 		
 		savedOrderGroup.addOrder(newOrderWithNegativePosition, -1);
 		
@@ -3651,8 +3561,7 @@ public class OrderServiceTest extends BaseContextSensitiveTest {
 		    secondSavedOrderGroup.getOrders().get(2).getUuid());
 		
 		assertThat("The new order has a higher sortWeight than the second", secondSavedOrderGroup.getOrders().get(2)
-		        .getSortWeight().compareTo(secondSavedOrderGroup.getOrders().get(1).getSortWeight()),
-		    is(1));
+		        .getSortWeight().compareTo(secondSavedOrderGroup.getOrders().get(1).getSortWeight()), is(1));
 		
 		Order newOrderWithInvalidPosition = new OrderBuilder().withAction(Order.Action.NEW).withPatient(7).withConcept(1000)
 		        .withCareSetting(1).withOrderer(1).withEncounter(3).withDateActivated(new Date()).withOrderType(17)

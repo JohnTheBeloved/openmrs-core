@@ -19,6 +19,7 @@ import org.openmrs.Patient;
 import org.openmrs.User;
 import org.openmrs.annotation.Handler;
 import org.openmrs.aop.RequiredDataAdvice;
+import org.openmrs.api.CohortService;
 import org.openmrs.api.EncounterService;
 import org.openmrs.api.OrderService;
 import org.openmrs.api.context.Context;
@@ -37,7 +38,7 @@ import org.openmrs.parameter.EncounterSearchCriteriaBuilder;
  * @see Patient
  * @since 1.9
  */
-@Handler(supports = Patient.class)
+@Handler(supports = {Patient.class}, order = 50)
 public class PatientDataUnvoidHandler implements UnvoidHandler<Patient> {
 	
 	@SuppressWarnings("unchecked")
@@ -72,6 +73,9 @@ public class PatientDataUnvoidHandler implements UnvoidHandler<Patient> {
 					}
 				}
 			}
+
+			CohortService cs = Context.getCohortService();
+			cs.notifyPatientUnvoided(patient, originalVoidingUser, origParentVoidedDate);
 		}
 	}
 }

@@ -10,6 +10,7 @@
 package org.openmrs;
 
 import org.apache.commons.lang.StringUtils;
+import org.hibernate.search.annotations.Field;
 
 /**
  * PatientIdentifierType
@@ -59,7 +60,8 @@ public class PatientIdentifierType extends BaseOpenmrsMetadata {
 	private Integer patientIdentifierTypeId;
 	
 	private String format;
-	
+
+	@Field
 	private Boolean required = Boolean.FALSE;
 	
 	private String formatDescription;
@@ -184,10 +186,7 @@ public class PatientIdentifierType extends BaseOpenmrsMetadata {
 		return StringUtils.isNotEmpty(validator);
 	}
 	
-	/**
-	 * TODO: make this return a more debug-worth string instead of just the name. Check the webapp
-	 * to make sure it is not depending on this
-	 * 
+	/** 
 	 * @see java.lang.Object#toString()
 	 */
 	public String toString() {

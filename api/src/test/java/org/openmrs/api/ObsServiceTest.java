@@ -9,6 +9,38 @@
  */
 package org.openmrs.api;
 
+import static org.hamcrest.core.Is.is;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+
+import java.awt.image.BufferedImage;
+import java.awt.image.WritableRaster;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.CharArrayReader;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.Reader;
+import java.io.Writer;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.imageio.ImageIO;
+
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -35,38 +67,7 @@ import org.openmrs.util.DateUtil;
 import org.openmrs.util.OpenmrsConstants;
 import org.openmrs.util.OpenmrsConstants.PERSON_TYPE;
 import org.openmrs.util.OpenmrsUtil;
-import org.springframework.validation.BindException;
-import org.springframework.validation.Errors;
-
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.awt.image.WritableRaster;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.CharArrayReader;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.Reader;
-import java.io.Writer;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * TODO clean up and add tests for all methods in ObsService
@@ -79,8 +80,31 @@ public class ObsServiceTest extends BaseContextSensitiveTest {
 	
 	protected static final String COMPLEX_OBS_XML = "org/openmrs/api/include/ObsServiceTest-complex.xml";
 
+	protected static final String REVISION_OBS_XML = "org/openmrs/api/include/ObsServiceTest-RevisionObs.xml";
+	
+	@Autowired
+	private ObsService obsService;
+
 	@Rule
 	public ExpectedException expectedException = ExpectedException.none();
+
+
+	/**
+	 * This method gets the revision obs for voided obs
+	 *
+	 * @see ObsService#getRevisionObs(Obs)
+	 */
+	@Test
+	public void shouldGetRevisedObs() throws Exception {
+		executeDataSet(INITIAL_OBS_XML);
+		executeDataSet(REVISION_OBS_XML);
+
+		ObsService os = Context.getObsService();
+		Obs initialObs = os.getObsByUuid("uuid14");
+		Obs revisedObs = os.getRevisionObs(initialObs);
+		assertEquals(17, revisedObs.getId().intValue());
+		assertEquals(2, revisedObs.getGroupMembers(true).size());
+	}
 
 	@Test
 	@Verifies(value = "should throw APIException when obs is null", method = "saveObs(Obs,String)")
@@ -355,7 +379,7 @@ public class ObsServiceTest extends BaseContextSensitiveTest {
 		Date sd = df.parse("2006-02-01");
 		Date ed = df.parse("2006-02-20");
 		List<Obs> obs = os.getObservations(null, null, null, null, null, null, null, null, null, sd, ed, false);
-		assertEquals(8, obs.size());
+		assertEquals(9, obs.size());
 		
 		// Test 2, From boundary
 		sd = df.parse("2006-02-13");
@@ -367,7 +391,7 @@ public class ObsServiceTest extends BaseContextSensitiveTest {
 		sd = df.parse("2006-02-01");
 		ed = df.parse("2006-02-15");
 		obs = os.getObservations(null, null, null, null, null, null, null, null, null, sd, ed, false);
-		assertEquals(7, obs.size());
+		assertEquals(8, obs.size());
 		
 		// Test 4, Both Boundaries
 		sd = df.parse("2006-02-11");
@@ -860,7 +884,7 @@ public class ObsServiceTest extends BaseContextSensitiveTest {
 		    null, null, null, null, null, false, null);
 		
 		// obs 11 in INITIAL_OBS_XML and obs 13 in standardTestDataset
-		Assert.assertEquals(2, obss.size());
+		Assert.assertEquals(3, obss.size());
 		Set<Integer> ids = new HashSet<Integer>();
 		for (Obs o : obss) {
 			ids.add(o.getObsId());
@@ -883,7 +907,7 @@ public class ObsServiceTest extends BaseContextSensitiveTest {
 		Integer count = obsService.getObservationCount(null, null, null, Collections.singletonList(new Concept(7)), null,
 		    null, null, null, null, false, null);
 		
-		Assert.assertEquals(2, count.intValue());
+		Assert.assertEquals(3, count.intValue());
 		
 	}
 	
@@ -1023,7 +1047,7 @@ public class ObsServiceTest extends BaseContextSensitiveTest {
 		List<Obs> obss = obsService.getObservations(null, null, null, null, null, null, null, null, 2 /*obsGroupId*/, null,
 		    null, false, null);
 		
-		Assert.assertEquals(1, obss.size());
+		Assert.assertEquals(2, obss.size());
 	}
 	
 	/**
@@ -1040,7 +1064,7 @@ public class ObsServiceTest extends BaseContextSensitiveTest {
 		Integer count = obsService.getObservationCount(null, null, null, null, null, null, 2 /*obsGroupId*/, null, null,
 		    false, null);
 		
-		Assert.assertEquals(1, count.intValue());
+		Assert.assertEquals(2, count.intValue());
 	}
 	
 	/**
@@ -1057,7 +1081,7 @@ public class ObsServiceTest extends BaseContextSensitiveTest {
 		List<Obs> obss = obsService.getObservations(null, null, null, null, Collections.singletonList(PERSON_TYPE.PATIENT),
 		    null, null, null, null, null, null, false, null);
 		
-		Assert.assertEquals(13, obss.size());
+		Assert.assertEquals(15, obss.size());
 	}
 	
 	/**
@@ -1074,7 +1098,7 @@ public class ObsServiceTest extends BaseContextSensitiveTest {
 		Integer count = obsService.getObservationCount(null, null, null, null,
 		    Collections.singletonList(PERSON_TYPE.PATIENT), null, null, null, null, false, null);
 		
-		Assert.assertEquals(13, count.intValue());
+		Assert.assertEquals(15, count.intValue());
 	}
 	
 	/**
@@ -1091,7 +1115,7 @@ public class ObsServiceTest extends BaseContextSensitiveTest {
 		List<Obs> obss = obsService.getObservations(null, null, null, null, Collections.singletonList(PERSON_TYPE.PERSON),
 		    null, null, null, null, null, null, false, null);
 		
-		Assert.assertEquals(15, obss.size());
+		Assert.assertEquals(17, obss.size());
 	}
 	
 	/**
@@ -1108,7 +1132,7 @@ public class ObsServiceTest extends BaseContextSensitiveTest {
 		Integer count = obsService.getObservationCount(null, null, null, null,
 		    Collections.singletonList(PERSON_TYPE.PERSON), null, null, null, null, false, null);
 		
-		Assert.assertEquals(15, count.intValue());
+		Assert.assertEquals(17, count.intValue());
 	}
 	
 	/**
@@ -1257,6 +1281,8 @@ public class ObsServiceTest extends BaseContextSensitiveTest {
 	@Verifies(value = "should get obs matching patient identifier in searchString", method = "getObservations(String)")
 	public void getObservations_shouldGetObsMatchingPatientIdentifierInSearchString() throws Exception {
 		executeDataSet(INITIAL_OBS_XML);
+
+		updateSearchIndex();
 		
 		ObsService obsService = Context.getObsService();
 		
@@ -1349,6 +1375,23 @@ public class ObsServiceTest extends BaseContextSensitiveTest {
 		obsService.purgeObs(obs);
 		
 		Assert.assertNull(obsService.getObs(7));
+		
+		
+		executeDataSet(COMPLEX_OBS_XML);
+		Obs complexObs = obsService.getComplexObs(44, ComplexObsHandler.RAW_VIEW);
+		// obs #44 is coded by the concept complex #8473 pointing to ImageHandler
+		// ImageHandler inherits AbstractHandler which handles complex data files on disk
+		assertNotNull(complexObs.getComplexData());
+		AdministrationService as = Context.getAdministrationService();
+		File complexObsDir = OpenmrsUtil.getDirectoryInApplicationDataDirectory(as
+		        .getGlobalProperty(OpenmrsConstants.GLOBAL_PROPERTY_COMPLEX_OBS_DIR));
+		for (File file : complexObsDir.listFiles()) {
+			file.delete();
+		}
+
+		obsService.purgeObs(complexObs);
+		
+		assertNull(obsService.getObs(obs.getObsId()));
 	}
 	
 	/**
@@ -1577,8 +1620,10 @@ public class ObsServiceTest extends BaseContextSensitiveTest {
 		// a obs with child groups
 		Obs origParentObs = obsService.getObs(2);
 		Set<Obs> originalMembers = new HashSet<>(origParentObs.getGroupMembers(true));
-		assertEquals(2, originalMembers.size());
-		
+		assertEquals(3, originalMembers.size());
+		assertTrue(originalMembers.contains(obsService.getObs(9)));
+		assertTrue(originalMembers.contains(obsService.getObs(10)));
+
 		Obs groupMember = new Obs();
 		groupMember.setConcept(Context.getConceptService().getConcept(3));
 		groupMember.setObsDatetime(new Date());
@@ -1589,23 +1634,13 @@ public class ObsServiceTest extends BaseContextSensitiveTest {
 		assertNotNull(groupMember.getObsGroup());
 		
 		Obs newParentObs = obsService.saveObs(origParentObs, "Updating obs group");
-		assertNotEquals(origParentObs, newParentObs);
-		assertEquals(3, newParentObs.getGroupMembers(true).size());
+		assertEquals(origParentObs, newParentObs);
+		assertEquals(4, newParentObs.getGroupMembers(true).size());
 		// make sure the api filled in all of the necessary ids again
 		assertNotNull(groupMember.getObsId());
-		// the api should have voided and replaced the group members
-		for (Obs o : originalMembers) {
-			assertTrue(o.getVoided());
-			assertFalse(newParentObs.getGroupMembers(true).contains(o));
-		}
-		for (Obs o : newParentObs.getGroupMembers(true)) {
-			if (groupMember.equals(o)) {
-				//this is the new one so it can't have a previous one
-				continue;
-			}
-			assertTrue(o.hasPreviousVersion());
-			assertFalse(origParentObs.getGroupMembers(true).contains(o));
-		}
+		assertTrue(newParentObs.getGroupMembers(true).contains(obsService.getObs(9)));
+		assertTrue(newParentObs.getGroupMembers(true).contains(obsService.getObs(10)));
+		assertTrue(newParentObs.getGroupMembers(true).contains(obsService.getObs(groupMember.getObsId())));
 	}
 	
 	/**
@@ -1878,9 +1913,9 @@ public class ObsServiceTest extends BaseContextSensitiveTest {
 	 */
 	@Test
 	public void saveObs_shouldNotVoidAnObsWithNoChanges() throws Exception {
-		executeDataSet(INITIAL_OBS_XML);
+		executeDataSet(ENCOUNTER_OBS_XML);
 		ObsService os = Context.getObsService();
-		Obs obs = os.getObs(2);
+		Obs obs = os.getObs(14);
 		assertFalse(obs.getGroupMembers(true).isEmpty());
 		assertFalse(obs.getGroupMembers(false).isEmpty());
 		assertFalse(obs.isDirty());
@@ -1891,5 +1926,132 @@ public class ObsServiceTest extends BaseContextSensitiveTest {
 		Obs saveObs = os.saveObs(obs, "no change");
 		assertEquals(obs, saveObs);
 		assertFalse(saveObs.getVoided());
+
+		Set<Obs> savedMembers = new HashSet<>(saveObs.getGroupMembers());
+		assertFalse(saveObs.isDirty());
+		for (Obs o : savedMembers) {
+			assertFalse("obs"+o.getId(), o.isDirty());
+		}
+
+	}
+
+	/**
+	 * @see ObsService#saveObs(Obs,String)
+	 */
+	@Test
+	@Verifies(value = "should contain the form_namespace_and_path value in the edited obs", method = "saveObs(Obs,String)")
+	public void saveObs_shouldCopyTheFormNamespaceAndPathFieldInEditedObs() throws Exception {
+		executeDataSet(INITIAL_OBS_XML);
+		Obs obs = Context.getObsService().getObs(7);
+		obs.setValueNumeric(5.0);
+		Obs o2 = Context.getObsService().saveObs(obs, "just testing");
+		Assert.assertNotNull(obs.getFormFieldNamespace());
+
+		// fetch the obs from the database again
+		obs = Context.getObsService().getObs(o2.getObsId());
+		Assert.assertNotNull(obs.getFormFieldNamespace());
+		Assert.assertNotNull(obs.getFormFieldPath());
+	}
+
+	/**
+	 * @see ObsService#saveObs(Obs,String)
+	 */
+	@Test
+	public void saveObs_shouldVoidOnlyOldObsWhenAllObsEditedAndNewObsAdded() throws Exception {
+		executeDataSet(INITIAL_OBS_XML);
+		ConceptService cs = Context.getConceptService();
+		Date newDate = new Date();
+		//Update the entire Obs Tree obsDateTime
+		Obs obs = Context.getObsService().getObs(2);
+		obs.setObsDatetime(new Date());
+		Obs child = null;
+		for(Obs member : obs.getGroupMembers()) {
+			member.setObsDatetime(newDate);
+			if(member.getId() == 17) {
+				child = member;
+			}
+		}
+
+		Obs child1 = child.getGroupMembers().iterator().next();
+		child1.setObsDatetime(newDate);
+
+		//add a new obs at depth>1
+		Obs o1 = new Obs();
+		o1.setConcept(cs.getConcept(3));
+		o1.setDateCreated(newDate);
+		o1.setCreator(Context.getAuthenticatedUser());
+		o1.setLocation(new Location(1));
+		o1.setObsDatetime(newDate);
+		o1.setValueText("NewObs Value");
+		o1.setPerson(new Patient(2));
+		child.addGroupMember(o1);
+
+		int count = 0;
+
+		Obs newObs = Context.getObsService().saveObs(obs, "just testing");
+
+		Assert.assertEquals(newObs.getObsDatetime().toString(), newDate.toString());
+
+		for(Obs member : newObs.getGroupMembers()) {
+			Assert.assertEquals(member.getObsDatetime().toString(), newDate.toString());
+			if(member.getGroupMembers()!= null) {
+
+				for (Obs memberChild : member.getGroupMembers()) {
+					Assert.assertEquals(memberChild.getObsDatetime().toString(), newDate.toString());
+					if (memberChild.getValueText()!= null && memberChild.getValueText().equals("NewObs Value")) {
+						count++;
+					}
+				}
+				if (count == 0) {
+					Assert.fail("New Obs not created");
+				}
+			}
+		}
+	}
+	
+	@Test
+	public void saveObs_shouldSetStatusToAmendedWhenModifyingAnObsWithFinalStatus() throws Exception {
+		Obs existing = obsService.getObs(7);
+		existing.setValueNumeric(60.0);
+		Obs amended = obsService.saveObs(existing, "testing");
+		assertThat(amended.getValueNumeric(), is(60.0));
+		assertThat(amended.getStatus(), is(Obs.Status.AMENDED));
+		assertThat(existing.getStatus(), is(Obs.Status.FINAL));
+	}
+	
+	@Test
+	public void saveObs_shouldNotChangeStatusOfPreliminaryWhenModifyingAnObs() throws Exception {
+		Obs existing = obsService.getObs(9);
+		existing.setValueNumeric(175.0);
+		Obs newObs = obsService.saveObs(existing, "testing");
+		assertThat(newObs.getValueNumeric(), is(175.0));
+		assertThat(newObs.getStatus(), is(Obs.Status.PRELIMINARY));
+	}
+	
+	@Test
+	public void saveObs_shouldLetYouChangeStatusFromPreliminaryToFinalWhenModifyingAnObs() throws Exception {
+		Obs existing = obsService.getObs(9);
+		existing.setValueNumeric(175.0);
+		existing.setStatus(Obs.Status.FINAL);
+		Obs newObs = obsService.saveObs(existing, "testing");
+		assertThat(newObs.getValueNumeric(), is(175.0));
+		assertThat(newObs.getStatus(), is(Obs.Status.FINAL));
+	}
+	
+	/**
+	 * Tests that we support a manual workaround in case you need to modify a FINAL obs and leave its status as FINAL
+	 */
+	@Test
+	public void shouldNotAutomaticallySetStatusWhenManuallyCopyingAnObs() throws Exception {
+		Obs existing = obsService.getObs(7);
+		Obs newObs = Obs.newInstance(existing);
+		newObs.setValueNumeric(60.0);
+		newObs.setPreviousVersion(existing);
+		newObs = obsService.saveObs(newObs, null);
+		obsService.voidObs(existing, "testing");
+		
+		assertThat(existing.getStatus(), is(Obs.Status.FINAL));
+		assertThat(existing.getVoided(), is(true));
+		assertThat(newObs.getStatus(), is(Obs.Status.FINAL));
 	}
 }

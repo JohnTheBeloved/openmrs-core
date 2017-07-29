@@ -673,7 +673,7 @@ public class ORUR01Handler implements Application {
 				concept = concept.hydrate(concept.getConceptId().toString());
 				obs.setConcept(concept);
 				if (concept.getDatatype().isBoolean()) {
-					obs.setValueBoolean(value.equals("1"));
+					obs.setValueBoolean("1".equals(value));
 				} else if (concept.getDatatype().isNumeric()) {
 					try {
 						obs.setValueNumeric(Double.valueOf(value));
@@ -688,7 +688,7 @@ public class ORUR01Handler implements Application {
 					        .getConceptService().getFalseConcept();
 					boolean isValidAnswer = false;
 					Collection<ConceptAnswer> conceptAnswers = concept.getAnswers();
-					if (conceptAnswers != null && conceptAnswers.size() > 0) {
+					if (conceptAnswers != null && !conceptAnswers.isEmpty()) {
 						for (ConceptAnswer conceptAnswer : conceptAnswers) {
 							if (conceptAnswer.getAnswerConcept().getId().equals(answer.getId())) {
 								obs.setValueCoded(answer);

@@ -17,6 +17,7 @@ import org.openmrs.annotation.Handler;
 import org.openmrs.aop.RequiredDataAdvice;
 import org.openmrs.api.EncounterService;
 import org.openmrs.api.context.Context;
+import org.openmrs.util.PrivilegeConstants;
 
 import java.util.Date;
 import java.util.List;
@@ -57,6 +58,14 @@ public class PatientDataVoidHandler implements VoidHandler<Patient> {
 					es.voidEncounter(encounter, voidReason);
 				}
 			}
+		}
+
+		Context.addProxyPrivilege(PrivilegeConstants.EDIT_COHORTS);
+		try {
+			Context.getCohortService().notifyPatientVoided(patient);
+		}
+		finally {
+			Context.removeProxyPrivilege(PrivilegeConstants.EDIT_COHORTS);
 		}
 	}
 }

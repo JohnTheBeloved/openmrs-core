@@ -666,7 +666,7 @@ public class HibernateConceptDAO implements ConceptDAO {
 		List<Concept> concepts = sessionFactory.getCurrentSession().createCriteria(Concept.class).add(
 		    Restrictions.lt("conceptId", i)).addOrder(Order.desc("conceptId")).setFetchSize(1).list();
 		
-		if (concepts.size() < 1) {
+		if (concepts.isEmpty()) {
 			return null;
 		}
 		return concepts.get(0);
@@ -682,7 +682,7 @@ public class HibernateConceptDAO implements ConceptDAO {
 		List<Concept> concepts = sessionFactory.getCurrentSession().createCriteria(Concept.class).add(
 		    Restrictions.gt("conceptId", i)).addOrder(Order.asc("conceptId")).setMaxResults(1).list();
 		
-		if (concepts.size() < 1) {
+		if (concepts.isEmpty()) {
 			return null;
 		}
 		return concepts.get(0);
@@ -842,7 +842,7 @@ public class HibernateConceptDAO implements ConceptDAO {
 		Criteria crit = sessionFactory.getCurrentSession().createCriteria(ConceptNameTag.class).add(
 		    Restrictions.eq("tag", name));
 		
-		if (crit.list().size() < 1) {
+		if (crit.list().isEmpty()) {
 			return null;
 		}
 		
@@ -948,7 +948,7 @@ public class HibernateConceptDAO implements ConceptDAO {
 		 * @see java.util.Iterator#hasNext()
 		 */
 		public boolean hasNext() {
-			return (nextConcept != null);
+			return nextConcept != null;
 		}
 		
 		/**
@@ -1141,6 +1141,30 @@ public class HibernateConceptDAO implements ConceptDAO {
 		criteria.add(Restrictions.eq("source.name", conceptSourceName));
 		return (ConceptSource) criteria.uniqueResult();
 	}
+
+	/**
+	 * @see org.openmrs.api.db.ConceptDAO#getConceptSourceByUniqueId(java.lang.String)
+	 */
+	public ConceptSource getConceptSourceByUniqueId(String uniqueId) {
+		if (StringUtils.isBlank(uniqueId)) {
+			return null;
+		}
+		Criteria criteria = sessionFactory.getCurrentSession().createCriteria(ConceptSource.class);
+		criteria.add(Restrictions.eq("uniqueId", uniqueId));
+		return (ConceptSource) criteria.uniqueResult();
+	}
+	
+	/**
+	 * @see org.openmrs.api.db.ConceptDAO#getConceptSourceByHL7Code(java.lang.String)
+	 */
+	public ConceptSource getConceptSourceByHL7Code(String hl7Code) {
+		if (StringUtils.isBlank(hl7Code)) {
+			return null;
+		}
+		Criteria criteria = sessionFactory.getCurrentSession().createCriteria(ConceptSource.class);
+		criteria.add(Restrictions.eq("hl7Code", hl7Code));
+		return (ConceptSource) criteria.uniqueResult();
+	}
 	
 	/**
 	 * @see org.openmrs.api.db.ConceptDAO#getSavedConceptDatatype(org.openmrs.Concept)
@@ -1279,7 +1303,7 @@ public class HibernateConceptDAO implements ConceptDAO {
 		} else if (searchDrugConceptNames) {
 			LuceneQuery<ConceptName> conceptNameQuery = newConceptNameLuceneQuery(drugName, searchKeywords, Arrays
 			        .asList(locale), exactLocale, includeRetired, null, null, null, null, null);
-			List<Object> conceptIds = conceptNameQuery.listProjection("concept.conceptId");
+			List<Object[]> conceptIds = conceptNameQuery.listProjection("concept.conceptId");
 			if (!conceptIds.isEmpty()) {
 				CollectionUtils.transform(conceptIds, new Transformer() {
 					
@@ -1513,7 +1537,7 @@ public class HibernateConceptDAO implements ConceptDAO {
 		criteria.add(Restrictions.ilike("name", name, MatchMode.EXACT));
 		criteria.add(Restrictions.eq("conceptSource", conceptSource));
 		List terms = criteria.list();
-		if (terms.size() == 0) {
+		if (terms.isEmpty()) {
 			return null;
 		} else if (terms.size() > 1) {
 			throw new APIException("ConceptReferenceTerm.foundMultipleTermsWithNameInSource", new Object[] { name,
@@ -1533,7 +1557,7 @@ public class HibernateConceptDAO implements ConceptDAO {
 		criteria.add(Restrictions.eq("code", code));
 		criteria.add(Restrictions.eq("conceptSource", conceptSource));
 		List terms = criteria.list();
-		if (terms.size() == 0) {
+		if (terms.isEmpty()) {
 			return null;
 		} else if (terms.size() > 1) {
 			throw new APIException("ConceptReferenceTerm.foundMultipleTermsWithCodeInSource", new Object[] { code,
@@ -1711,6 +1735,8 @@ public class HibernateConceptDAO implements ConceptDAO {
 		
 		if (list.size() == 1) {
 			return list.get(0).getConcept();
+		} else if (list.size() == 0) {
+			log.warn("No concept found for '" + name + "'");
 		} else {
 			log.warn("Multiple concepts found for '" + name + "'");
 			
@@ -1773,9 +1799,11 @@ public class HibernateConceptDAO implements ConceptDAO {
 			if (name.getConcept().isRetired()) {
 				return false;
 			}
-			
-			//If it is not a default name for a concept
-			if (!name.getConcept().getName(name.getLocale()).equals(name)) {
+
+			//If it is not a default name of a concept, it cannot be a duplicate.
+			//Note that a concept may not have a default name for the given locale, if just a short name or
+			//a search term is set.
+			if (!name.equals(name.getConcept().getName(name.getLocale()))) {
 				return false;
 			}
 		}
@@ -1830,7 +1858,7 @@ public class HibernateConceptDAO implements ConceptDAO {
 		
 		Criteria criteria = createSearchDrugByMappingCriteria(code, conceptSource, includeRetired);
 		// match with any of the supplied collection of conceptMapTypes
-		if (withAnyOfTheseTypes.size() > 0) {
+		if (!withAnyOfTheseTypes.isEmpty()) {
 			criteria.add(Restrictions.in("map.conceptMapType", withAnyOfTheseTypes));
 		}
 		//check whether retired on not retired drugs
@@ -1846,7 +1874,7 @@ public class HibernateConceptDAO implements ConceptDAO {
 		Criteria criteria = createSearchDrugByMappingCriteria(code, conceptSource, true);
 		
 		// match with any of the supplied collection or order of preference of conceptMapTypes
-		if (withAnyOfTheseTypesOrOrderOfPreference.size() > 0) {
+		if (!withAnyOfTheseTypesOrOrderOfPreference.isEmpty()) {
 			for (ConceptMapType conceptMapType : withAnyOfTheseTypesOrOrderOfPreference) {
 				criteria.add(Restrictions.eq("map.conceptMapType", conceptMapType));
 				List<Drug> drugs = criteria.list();

@@ -184,9 +184,9 @@ public class PersonServiceTest extends BaseContextSensitiveTest {
 		pAddressList.add(pAddress);
 		patient.setAddresses(pAddressList);
 		patient.addAddress(pAddress);
-		patient.setDeathDate(new Date());
 		patient.setBirthdate(new Date());
 		patient.setBirthdateEstimated(true);
+		patient.setDeathDate(new Date());
 		patient.setGender("male");
 		List<PatientIdentifierType> patientIdTypes = ps.getAllPatientIdentifierTypes();
 		assertNotNull(patientIdTypes);
@@ -506,6 +506,7 @@ public class PersonServiceTest extends BaseContextSensitiveTest {
 	@Verifies(value = "should match search to familyName2", method = "getPeople(String,Boolean)")
 	public void getPeople_shouldMatchSearchToFamilyName2() throws Exception {
 		executeDataSet("org/openmrs/api/include/PersonServiceTest-extranames.xml");
+		updateSearchIndex();
 		
 		List<Person> people = Context.getPersonService().getPeople("Johnson", false);
 		Assert.assertEquals(3, people.size());

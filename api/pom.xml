@@ -13,7 +13,7 @@
    <parent>
       <groupId>org.openmrs</groupId>
       <artifactId>openmrs</artifactId>
-      <version>2.1.0-SNAPSHOT</version>
+      <version>2.1.0</version>
    </parent>
    <modelVersion>4.0.0</modelVersion>
    <groupId>org.openmrs.api</groupId>
@@ -82,6 +82,10 @@
       <dependency>
          <groupId>org.springframework</groupId>
          <artifactId>spring-jdbc</artifactId>
+      </dependency>
+      <dependency>
+         <groupId>org.springframework</groupId>
+         <artifactId>spring-context-support</artifactId>
       </dependency>
       <dependency>
          <groupId>asm</groupId>
@@ -295,6 +299,10 @@
                </execution>
             </executions>
          </plugin>
+		 <plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+		 </plugin>
       </plugins>
    </build>
    

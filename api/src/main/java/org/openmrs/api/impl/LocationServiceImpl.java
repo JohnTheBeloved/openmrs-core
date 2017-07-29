@@ -9,11 +9,6 @@
  */
 package org.openmrs.api.impl;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-
 import org.apache.commons.collections.CollectionUtils;
 import org.openmrs.Address;
 import org.openmrs.Location;
@@ -29,6 +24,11 @@ import org.openmrs.util.OpenmrsConstants;
 import org.openmrs.util.OpenmrsUtil;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Default implementation of the {@link LocationService}
@@ -129,12 +129,6 @@ public class LocationServiceImpl extends BaseOpenmrsService implements LocationS
 		if (location == null) {
 			location = Context.getLocationService().getLocation(Integer.valueOf(1));
 		}
-		
-		// TODO Figure out if we should/could throw an exception if there's  
-		// no location to fall back on.
-		//if (location == null) { 
-		//	throw new APIException("Default location does not exist");
-		//}
 		
 		return location;
 	}

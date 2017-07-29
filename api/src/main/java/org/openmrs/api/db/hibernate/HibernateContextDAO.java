@@ -115,7 +115,7 @@ public class HibernateContextDAO implements ContextDAO {
 			
 			String lockoutTimeString = candidateUser.getUserProperty(OpenmrsConstants.USER_PROPERTY_LOCKOUT_TIMESTAMP, null);
 			Long lockoutTime = null;
-			if (lockoutTimeString != null && !lockoutTimeString.equals("0")) {
+			if (lockoutTimeString != null && !"0".equals(lockoutTimeString)) {
 				try {
 					// putting this in a try/catch in case the admin decided to put junk into the property
 					lockoutTime = Long.valueOf(lockoutTimeString);
@@ -313,6 +313,13 @@ public class HibernateContextDAO implements ContextDAO {
 		sessionFactory.getCurrentSession().evict(obj);
 	}
 	
+	/**
+	 * @see org.openmrs.api.db.ContextDAO#refreshEntity(Object)
+	 */
+	public void refreshEntity(Object obj) {
+		sessionFactory.getCurrentSession().refresh(obj);
+	}
+
 	/**
 	 * @see org.openmrs.api.db.ContextDAO#flushSession()
 	 */

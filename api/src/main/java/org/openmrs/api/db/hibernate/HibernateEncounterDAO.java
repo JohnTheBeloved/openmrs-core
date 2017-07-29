@@ -135,21 +135,21 @@ public class HibernateEncounterDAO implements EncounterDAO {
 					)
 			);
 		}
-		if (searchCriteria.getEnteredViaForms() != null && searchCriteria.getEnteredViaForms().size() > 0) {
+		if (searchCriteria.getEnteredViaForms() != null && !searchCriteria.getEnteredViaForms().isEmpty()) {
 			crit.add(Restrictions.in("form", searchCriteria.getEnteredViaForms()));
 		}
-		if (searchCriteria.getEncounterTypes() != null && searchCriteria.getEncounterTypes().size() > 0) {
+		if (searchCriteria.getEncounterTypes() != null && !searchCriteria.getEncounterTypes().isEmpty()) {
 			crit.add(Restrictions.in("encounterType", searchCriteria.getEncounterTypes()));
 		}
-		if (searchCriteria.getProviders() != null && searchCriteria.getProviders().size() > 0) {
+		if (searchCriteria.getProviders() != null && !searchCriteria.getProviders().isEmpty()) {
 			crit.createAlias("encounterProviders", "ep");
 			crit.add(Restrictions.in("ep.provider", searchCriteria.getProviders()));
 		}
-		if (searchCriteria.getVisitTypes() != null && searchCriteria.getVisitTypes().size() > 0) {
+		if (searchCriteria.getVisitTypes() != null && !searchCriteria.getVisitTypes().isEmpty()) {
 			crit.createAlias("visit", "v");
 			crit.add(Restrictions.in("v.visitType", searchCriteria.getVisitTypes()));
 		}
-		if (searchCriteria.getVisits() != null && searchCriteria.getVisits().size() > 0) {
+		if (searchCriteria.getVisits() != null && !searchCriteria.getVisits().isEmpty()) {
 			crit.add(Restrictions.in("visit", searchCriteria.getVisits()));
 		}
 		if (!searchCriteria.getIncludeVoided()) {
@@ -335,7 +335,9 @@ public class HibernateEncounterDAO implements EncounterDAO {
 		
 		// only include this where clause if patients were passed in
 		if (patients != null) {
-			criteria.add(Restrictions.in("patient.personId", patients.getMemberIds()));
+            ArrayList<Integer> patientIds = new ArrayList<Integer>();
+			patients.getMemberships().forEach(m -> patientIds.add(m.getPatientId()));
+			criteria.add(Restrictions.in("patient.personId", patientIds));
 		}
 		
 		criteria.add(Restrictions.eq("voided", false));
@@ -423,16 +425,12 @@ public class HibernateEncounterDAO implements EncounterDAO {
 				criteria.add(or);
 			}
 		} else {
-			String name = null;
-			String identifier = null;
-			if (query.matches(".*\\d+.*")) {
-				identifier = query;
-			} else {
-				// there is no number in the string, search on name
-				name = query;
-			}
+			//As identifier could be all alpha, no heuristic here will work in determining intent of user for querying by name versus identifier
+			//So search by both!
+			String name = query;
+			String identifier = query;
 			criteria = new PatientSearchCriteria(sessionFactory, criteria).prepareCriteria(name, identifier,
-			    new ArrayList<PatientIdentifierType>(), false, orderByNames, false);
+			    new ArrayList<PatientIdentifierType>(), true, orderByNames, true);	
 		}
 		
 		return criteria;

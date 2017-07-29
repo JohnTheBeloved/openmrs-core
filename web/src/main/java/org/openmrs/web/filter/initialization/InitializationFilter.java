@@ -39,8 +39,6 @@ import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import liquibase.changelog.ChangeSet;
-
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -51,6 +49,7 @@ import org.openmrs.ImplementationId;
 import org.openmrs.api.APIAuthenticationException;
 import org.openmrs.api.PasswordException;
 import org.openmrs.api.context.Context;
+import org.openmrs.api.context.ContextAuthenticationException;
 import org.openmrs.module.MandatoryModuleException;
 import org.openmrs.module.OpenmrsCoreModuleException;
 import org.openmrs.module.web.WebModuleUtil;
@@ -74,6 +73,8 @@ import org.openmrs.web.filter.util.ErrorMessageConstants;
 import org.openmrs.web.filter.util.FilterUtil;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.ContextLoader;
+
+import liquibase.changelog.ChangeSet;
 
 /**
  * This is the first filter that is processed. It is only active when starting OpenMRS for the very
@@ -260,6 +261,11 @@ public class InitializationFilter extends StartupFilter {
 			renderTemplate(PROGRESS_VM, referenceMap, httpResponse);
 		} else if (page == null) {
 			httpResponse.setContentType("text/html");// if any body has already started installation
+			
+			//If someone came straight here without setting the hidden page input,
+			// then we need to clear out all the passwords
+			clearPasswords();
+			
 			renderTemplate(DEFAULT_PAGE, referenceMap, httpResponse);
 		} else if (INSTALL_METHOD.equals(page)) {
 			// get props and render the second page
@@ -356,6 +362,14 @@ public class InitializationFilter extends StartupFilter {
 			
 			wizardModel.adminUserPassword = script.getProperty("admin_user_password", wizardModel.adminUserPassword);
 		}
+	}
+	
+	private void clearPasswords(){
+		wizardModel.databaseRootPassword = "";
+		wizardModel.createDatabasePassword = "";
+		wizardModel.createUserPassword = "";
+		wizardModel.currentDatabasePassword = "";
+		wizardModel.remotePassword = "";
 	}
 	
 	/**
@@ -1568,10 +1582,6 @@ public class InitializationFilter extends StartupFilter {
 									InputStream inData = TestInstallUtil.getResourceInputStream(wizardModel.remoteUrl
 									        + RELEASE_TESTING_MODULE_PATH + "generateTestDataSet.form",
 									    wizardModel.remoteUsername, wizardModel.remotePassword);
-									if (inData == null) {
-										reportError(ErrorMessageConstants.ERROR_DB_IMPORT_TEST_DATA, DEFAULT_PAGE, "");
-										return;
-									}
 									
 									setCompletedPercentage(40);
 									setMessage("Loading imported test data...");
@@ -1588,10 +1598,6 @@ public class InitializationFilter extends StartupFilter {
 									InputStream inModules = TestInstallUtil.getResourceInputStream(wizardModel.remoteUrl
 									        + RELEASE_TESTING_MODULE_PATH + "getModules.htm", wizardModel.remoteUsername,
 									    wizardModel.remotePassword);
-									if (inModules == null) {
-										reportError(ErrorMessageConstants.ERROR_DB_UNABLE_TO_FETCH_MODULES, DEFAULT_PAGE, "");
-										return;
-									}
 									
 									setCompletedPercentage(90);
 									setMessage("Adding imported modules...");
@@ -1765,9 +1771,14 @@ public class InitializationFilter extends StartupFilter {
 						try {
 							// change the admin user password from "test" to what they input above
 							if (wizardModel.createTables) {
-								Context.authenticate("admin", "test");
-								Context.getUserService().changePassword("test", wizardModel.adminUserPassword);
-								Context.logout();
+								try {
+									Context.authenticate("admin", "test");
+									Context.getUserService().changePassword("test", wizardModel.adminUserPassword);
+									Context.logout();
+								}
+								catch (ContextAuthenticationException ex) {
+									log.info("No need to change admin password.", ex);
+								}
 							}
 						}
 						catch (Exception e) {

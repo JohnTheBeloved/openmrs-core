@@ -296,7 +296,7 @@ public class OrderEntryIntegrationTest extends BaseContextSensitiveTest {
 		assertFalse(encounter.getOrders().isEmpty());
 		encounter.getOrders().iterator().next().setInstructions("new");
 		expectedException.expect(APIException.class);
-		expectedException.expectMessage(Matchers.is(Context.getMessageSourceService().getMessage("editing.fields.not.allowed", new Object[] { Order.class.getSimpleName() }, null)));
+		expectedException.expectMessage(Matchers.is(Context.getMessageSourceService().getMessage("editing.fields.not.allowed", new Object[] { "[instructions]", Order.class.getSimpleName() }, null)));
 		encounterService.saveEncounter(encounter);
 		Context.flushSession();
 	}
@@ -312,14 +312,13 @@ public class OrderEntryIntegrationTest extends BaseContextSensitiveTest {
 		Order dcOrder = orderService.getOrder(22);
 		Order previousOrder = dcOrder.getPreviousOrder();
 		assertNotNull(previousOrder);
-		DrugOrder previousDrugOrder = (DrugOrder) previousOrder;
 		
 		Order testOrder = orderService.getOrder(7);
 		Order dcTestOrder = orderService.discontinueOrder(testOrder, "Testing", null, testOrder.getOrderer(), testOrder
 		        .getEncounter());
 		Context.flushSession();
 		Context.clearSession();
-		dcTestOrder = (TestOrder) orderService.getOrder(dcTestOrder.getOrderId()).getPreviousOrder();
+		dcTestOrder = orderService.getOrder(dcTestOrder.getOrderId()).getPreviousOrder();
 	}
 	
 	@Test
@@ -341,7 +340,7 @@ public class OrderEntryIntegrationTest extends BaseContextSensitiveTest {
 		
 		//We need to flush so that we ensure the interceptor is okay with all this
 		Context.flushSession();
-		assertTrue(originalDCOrder.isVoided());
+		assertTrue(originalDCOrder.getVoided());
 		List<Order> newPatientOrders = orderService.getAllOrdersByPatient(originalDCOrder.getPatient());
 		assertEquals(originalPatientOrders.size() + 1, newPatientOrders.size());
 		Collection<Order> newOrders = CollectionUtils.disjunction(originalPatientOrders, newPatientOrders);

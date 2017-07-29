@@ -24,6 +24,7 @@ import org.openmrs.api.PatientService;
 import org.openmrs.api.context.Context;
 import org.openmrs.api.db.ObsDAO;
 import org.openmrs.api.handler.SaveHandler;
+import org.openmrs.obs.ComplexData;
 import org.openmrs.obs.ComplexObsHandler;
 import org.openmrs.obs.handler.AbstractHandler;
 import org.openmrs.util.OpenmrsClassLoader;
@@ -33,7 +34,6 @@ import org.openmrs.util.PrivilegeConstants;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -128,7 +128,7 @@ public class ObsServiceImpl extends BaseOpenmrsService implements ObsService {
 			// fetch a clean copy of this obs from the database so that
 			// we don't write the changes to the database when we save
 			// the fact that the obs is now voided
-			Context.evictFromSession(obs);
+			evictObsAndChildren(obs);
 			obs = Context.getObsService().getObs(obs.getObsId());
 			//delete the previous file from the appdata/complex_obs folder
 			if (newObs.hasPreviousVersion() && newObs.getPreviousVersion().isComplex()) {
@@ -150,15 +150,10 @@ public class ObsServiceImpl extends BaseOpenmrsService implements ObsService {
 		// this method doesn't copy the obs_id
 		Obs newObs = Obs.newInstance(obs);
 
-		// unset any voided properties on the new obs
-		newObs.setVoided(false);
-		newObs.setVoidReason(null);
-		newObs.setDateVoided(null);
-		newObs.setVoidedBy(null);
-		// unset the creation stats
-		newObs.setCreator(null);
-		newObs.setDateCreated(null);
-		newObs.setPreviousVersion(obs);
+		unsetVoidedAndCreationProperties(newObs,obs);
+		
+		Obs.Status originalStatus = dao.getSavedStatus(obs);
+		updateStatusIfNecessary(newObs, originalStatus);
 
 		RequiredDataAdvice.recursivelyHandle(SaveHandler.class, newObs, changeMessage);
 
@@ -173,6 +168,22 @@ public class ObsServiceImpl extends BaseOpenmrsService implements ObsService {
 		return newObs;
 
 	}
+	
+	private void updateStatusIfNecessary(Obs newObs, Obs.Status originalStatus) {
+		if (Obs.Status.FINAL.equals(originalStatus)) {
+			newObs.setStatus(Obs.Status.AMENDED);
+		}
+	}
+	
+	private void unsetVoidedAndCreationProperties(Obs newObs,Obs obs) {
+		newObs.setVoided(false);
+		newObs.setVoidReason(null);
+		newObs.setDateVoided(null);
+		newObs.setVoidedBy(null);
+		newObs.setCreator(null);
+		newObs.setDateCreated(null);
+		newObs.setPreviousVersion(obs);
+	}
 
 	private Obs saveObsNotDirty(Obs obs, String changeMessage) {
 		if(!obs.isObsGrouping()){
@@ -180,28 +191,19 @@ public class ObsServiceImpl extends BaseOpenmrsService implements ObsService {
 		}
 
 		ObsService os = Context.getObsService();
-		List<Obs> toRemove = new ArrayList<>();
-		List<Obs> toAdd = new ArrayList<>();
+		boolean refreshNeeded = false;
 		for (Obs o : obs.getGroupMembers(true)) {
 			if (o.getId() == null) {
 				os.saveObs(o, null);
 			} else {
-				Obs replacement = os.saveObs(o, changeMessage);
-				//The logic in saveObs evicts the old obs instance, so we need to update
-				//the collection with the newly loaded and voided instance
-				toRemove.add(o);
-				toAdd.add(os.getObs(o.getId()));
-				toAdd.add(replacement);
+				Obs newObs = os.saveObs(o, changeMessage);
+				refreshNeeded = !newObs.equals(o) || refreshNeeded;
 			}
 		}
 
-		for (Obs o : toRemove) {
-			obs.removeGroupMember(o);
+		if(refreshNeeded) {
+			Context.refreshEntity(obs);
 		}
-		for (Obs o : toAdd) {
-			obs.addGroupMember(o);
-		}
-
 		return obs;
 	}
 
@@ -209,6 +211,15 @@ public class ObsServiceImpl extends BaseOpenmrsService implements ObsService {
 		Obs ret = dao.saveObs(obs);
 		saveObsGroup(ret,changeMessage);
 		return ret;
+	}
+
+	private void evictObsAndChildren(Obs obs) {
+		Context.evictFromSession(obs);
+		if(obs.hasGroupMembers()) {
+			for(Obs member : obs.getGroupMembers()) {
+				evictObsAndChildren(member);
+			}
+		}
 	}
 
 	private void ensureRequirePrivilege(Obs obs){
@@ -228,8 +239,10 @@ public class ObsServiceImpl extends BaseOpenmrsService implements ObsService {
 	}
 
 	private void handleExistingObsWithComplexConcept(Obs obs) {
-		if (null != obs.getConcept() && obs.getConcept().isComplex()
-		        && null != obs.getComplexData().getData()) {
+		ComplexData complexData = obs.getComplexData();
+		Concept concept = obs.getConcept();
+		if (null != concept && concept.isComplex()
+		        && null != complexData && null != complexData.getData()) {
 			// save or update complexData object on this obs
 			// this is done before the database save so that the obs.valueComplex
 			// can be filled in by the handler.
@@ -237,7 +250,7 @@ public class ObsServiceImpl extends BaseOpenmrsService implements ObsService {
 			if (null != handler) {
 				handler.saveObs(obs);
 			} else {
-				throw new APIException("unknown.handler", new Object[] { obs.getConcept() });
+				throw new APIException("unknown.handler", new Object[] {concept});
 			}
 		}
 	}
@@ -404,7 +417,7 @@ public class ObsServiceImpl extends BaseOpenmrsService implements ObsService {
 		
 		List<Obs> returnList = new Vector<Obs>();
 		
-		if (encounters.size() > 0 || persons.size() > 0) {
+		if (!encounters.isEmpty() || !persons.isEmpty()) {
 			returnList = Context.getObsService().getObservations(persons, encounters, null, null, null, null, null, null,
 			    null, null, null, false);
 		}
@@ -458,7 +471,15 @@ public class ObsServiceImpl extends BaseOpenmrsService implements ObsService {
 	public Obs getObsByUuid(String uuid) throws APIException {
 		return dao.getObsByUuid(uuid);
 	}
-	
+
+	/**
+	 * @see org.openmrs.api.ObsService#getRevisionObs(org.openmrs.Obs)
+	 */
+	@Transactional(readOnly = true)
+	public Obs getRevisionObs(Obs initialObs) {
+		return dao.getRevisionObs(initialObs);
+	}
+
 	/**
 	 * @see org.openmrs.api.ObsService#getComplexObs(Integer, String)
 	 */
